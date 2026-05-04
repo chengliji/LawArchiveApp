@@ -5,7 +5,7 @@
 [![Python](https://img.shields.io/badge/Python-100%25-blue)](https://www.python.org/)
 [![License](https://img.shields.io/badge/License-MIT-green)](LICENSE)
 
-## 功能特性
+## 一、功能特性
 
 - 电子书签（侧边栏导航）。生成的电子文件 PDF 能自带左侧大纲导航。
 - 电子卷宗瘦身（网上立案压缩模式）。开启电子卷宗瘦身的勾选项，程序会在后台启动画质压缩算法。
@@ -16,13 +16,18 @@
 - 自定义防伪水印：点击合并前，会弹窗问你是否需要打水印。输入“XX案件归档”，生成的PDF每一页都会被打上倾斜的灰色防伪底纹。
 - 支持的文件格式：*.pdf *.doc *.docx *.xls *.xlsx *.ppt *.pptx *.txt *.rtf *.jpg *.jpeg *.png *.bmp *.tif *.tiff
 
-## 快速开始
+## 二、软件界面
 
-### 环境要求
+  <img width="1888" height="1002" alt="屏幕截图 2026-05-04 114447" src="https://github.com/user-attachments/assets/a0445e9d-b365-4a75-ae9b-3a0bb0e1974b" />
+
+
+## 三、快速开始
+
+### 1.环境要求
 
 - Python 3.7+
 
-### 1.安装（Windows 平台）
+### 2.安装（Windows 平台）
 
 ##### 第一步：在 Windows 上准备环境
 
@@ -34,7 +39,7 @@
 
 在 CMD 中，使用 cd 命令切换到你存放 ArchiveApp.py 的目录。然后，输入以下这行命令并回车：
 
-```pyinstaller --noconsole --onefile ArchiveApp.py```
+```python -m PyInstaller --noconsole --onefile ArchiveApp.py```
 
 (💡 进阶小贴士：如果你想给软件加个好看的图标，可以准备一个 .ico 格式的图片放同目录下，把命令改成 pyinstaller --noconsole --onefile --icon=logo.ico ArchiveApp.py)
 
@@ -42,7 +47,7 @@
 
 在项目代码目录中，打开 dist 文件夹，里面的 ArchiveApp.exe 就是你最终的劳动成果！
 
-### 2.安装（macOS 平台）
+### 3.安装（macOS 平台）
 
 #### 第一步：适配苹果字体与系统
 
