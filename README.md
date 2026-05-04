@@ -28,13 +28,13 @@
 
 在准备打包的 Windows 电脑上，打开命令提示符（CMD），安装依赖库：
 
-pip install pywin32 PyMuPDF reportlab pillow pyinstaller
+```pip install pywin32 PyMuPDF reportlab pillow pyinstaller```
 
 #### 第二步：执行打包命令
 
 在 CMD 中，使用 cd 命令切换到你存放 ArchiveApp.py 的目录。然后，输入以下这行命令并回车：
 
-pyinstaller --noconsole --onefile ArchiveApp.py
+```pyinstaller --noconsole --onefile ArchiveApp.py```
 
 (💡 进阶小贴士：如果你想给软件加个好看的图标，可以准备一个 .ico 格式的图片放同目录下，把命令改成 pyinstaller --noconsole --onefile --icon=logo.ico ArchiveApp.py)
 
@@ -46,8 +46,9 @@ pyinstaller --noconsole --onefile ArchiveApp.py
 
 #### 第一步：适配苹果字体与系统
 
-请打开你的 ArchiveApp.py，找到最前面的这段代码：
+打开 ArchiveApp.py，找到最前面的这段代码：
 
+```Python
 def get_windows_font():
     if not IS_WINDOWS: return None
     font_paths = [
@@ -60,9 +61,12 @@ def get_windows_font():
     return None
 
 SYS_FONT_PATH = get_windows_font()
+SYS_FONT_PATH = get_windows_font()
+```
 
 将它替换为跨平台版本：
 
+```Python
 def get_system_font():
     font_paths = []
     if sys.platform.startswith('win'):
@@ -83,19 +87,19 @@ def get_system_font():
     return None
 
 SYS_FONT_PATH = get_system_font()
+```
 
 #### 第二步：在 Mac 电脑上准备环境
 
 打开 Mac 的 终端 (Terminal)，安装和之前一样的依赖库：
 
-pip3 install PyMuPDF reportlab pillow customtkinter pyinstaller
-
+```pip3 install PyMuPDF reportlab pillow customtkinter pyinstaller```
 
 #### 第三步：执行 Mac 专属打包命令
 
 在终端中使用 cd 命令进入你存放代码的文件夹。然后执行：
 
-pyinstaller --windowed --onefile ArchiveApp.py
+```pyinstaller --windowed --onefile ArchiveApp.py```
 
 #### 第四步：收获你的 Mac 软件
 
@@ -105,7 +109,7 @@ pyinstaller --windowed --onefile ArchiveApp.py
 
 1 打开 Mac 终端，输入以下命令（注意最后有一个空格），然后把你的 .app 文件拖进终端里，按下回车即可解除锁定：
 
-sudo xattr -rd com.apple.quarantine 
+```sudo xattr -rd com.apple.quarantine ```
 
 (例如：sudo xattr -rd com.apple.quarantine /Users/name/Desktop/dist/ArchiveApp.app)
 
