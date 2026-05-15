@@ -37,7 +37,8 @@
 
 在准备打包的 Windows 电脑上，打开命令提示符（CMD），安装依赖库：
 
-```pip install pywin32 PyMuPDF reportlab pillow pyinstaller```
+V 5.0 版本：```pip install pywin32 PyMuPDF reportlab pillow pyinstaller```
+V 7.1 版本：```pip install PySide6 PyMuPDF reportlab pillow```
 
 #### 第二步：执行打包命令
 
@@ -102,7 +103,8 @@ SYS_FONT_PATH = get_system_font()
 
 打开 Mac 的 终端 (Terminal)，安装和之前一样的依赖库：
 
-```pip3 install PyMuPDF reportlab pillow customtkinter pyinstaller```
+V 5.0 版本：```pip3 install PyMuPDF reportlab pillow customtkinter pyinstaller```
+V 7.1 版本：```pip install PySide6 PyMuPDF reportlab pillow```
 
 #### 第三步：执行 Mac 专属打包命令
 
