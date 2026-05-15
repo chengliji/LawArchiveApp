@@ -17,10 +17,12 @@
 - 进度草稿箱：在界面最顶部加上了“文件”菜单栏，下班前没弄完，直接“保存草稿(.json)”，第二天“加载草稿”瞬间恢复所有文件和顺序！
 - 自定义防伪水印：点击合并前，会弹窗问你是否需要打水印。输入“XX案件归档”，生成的PDF每一页都会被打上倾斜的灰色防伪底纹。
 - 支持的文件格式：*.pdf *.doc *.docx *.xls *.xlsx *.ppt *.pptx *.txt *.rtf *.jpg *.jpeg *.png *.bmp *.tif *.tiff
+- 支持原生文件拖拽上传。
+- 支持双击列表中的文件调用系统软件直接打开查阅。
 
 ## 二、软件界面
 
-  <img width="1888" height="1002" alt="屏幕截图 2026-05-04 114447" src="https://github.com/user-attachments/assets/a0445e9d-b365-4a75-ae9b-3a0bb0e1974b" />
+  <img width="1502" height="1039" alt="屏幕截图 2026-05-15 154112" src="https://github.com/user-attachments/assets/450bca14-a5da-4150-a1bd-a982b4eeeddc" />
 
 
 ## 三、快速开始
