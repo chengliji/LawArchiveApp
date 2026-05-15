@@ -1,6 +1,6 @@
-# 律所案卷归档小工具
+# 律师案卷归档小工具
 
-一个为律所（律师）设计的自定义案卷归档管理工具，能将办案过程中形成的文件（如 .doc .pdf .jpg .png .txt .ppt .tiff等）一键生成含有归档目录的 pdf 文件，方便律所进行电子归档。
+一个为律师设计的自定义案卷归档管理工具，能将办案过程中形成的文件（如 .doc .pdf .jpg .png .txt .ppt .tiff等）一键生成含有归档目录的 pdf 文件，方便律师进行电子归档。
 
 [![Python](https://img.shields.io/badge/Python-100%25-blue)](https://www.python.org/)
 [![License](https://img.shields.io/badge/License-MIT-green)](LICENSE)
@@ -37,8 +37,7 @@
 
 在准备打包的 Windows 电脑上，打开命令提示符（CMD），安装依赖库：
 
-V 5.0 版本：```pip install pywin32 PyMuPDF reportlab pillow pyinstaller```
-V 7.1 版本：```pip install PySide6 PyMuPDF reportlab pillow```
+```pip install PySide6 PyMuPDF reportlab pillow```
 
 #### 第二步：执行打包命令
 
@@ -51,79 +50,3 @@ V 7.1 版本：```pip install PySide6 PyMuPDF reportlab pillow```
 #### 第三步：获取你的 .exe
 
 在项目代码目录中，打开 dist 文件夹，里面的 ArchiveApp.exe 就是你最终的劳动成果！
-
-### 3.安装（macOS 平台）
-
-#### 第一步：适配苹果字体与系统
-
-打开 ArchiveApp.py，找到最前面的这段代码：
-
-```Python
-def get_windows_font():
-    if not IS_WINDOWS: return None
-    font_paths = [
-        "C:\\Windows\\Fonts\\simsun.ttc",
-        "C:\\Windows\\Fonts\\msyh.ttc",
-        "C:\\Windows\\Fonts\\simhei.ttf"
-    ]
-    for path in font_paths:
-        if os.path.exists(path): return path
-    return None
-
-SYS_FONT_PATH = get_windows_font()
-SYS_FONT_PATH = get_windows_font()
-```
-
-将它替换为跨平台版本：
-
-```Python
-def get_system_font():
-    font_paths = []
-    if sys.platform.startswith('win'):
-        font_paths = [
-            "C:\\Windows\\Fonts\\simsun.ttc",
-            "C:\\Windows\\Fonts\\msyh.ttc",
-            "C:\\Windows\\Fonts\\simhei.ttf"
-        ]
-    elif sys.platform == 'darwin': # macOS 系统
-        font_paths = [
-            "/System/Library/Fonts/PingFang.ttc",       # 苹方字体
-            "/System/Library/Fonts/STHeiti Light.ttc",  # 华文黑体
-            "/Library/Fonts/Arial Unicode.ttf"
-        ]
-    
-    for path in font_paths:
-        if os.path.exists(path): return path
-    return None
-
-SYS_FONT_PATH = get_system_font()
-```
-
-#### 第二步：在 Mac 电脑上准备环境
-
-打开 Mac 的 终端 (Terminal)，安装和之前一样的依赖库：
-
-V 5.0 版本：```pip3 install PyMuPDF reportlab pillow customtkinter pyinstaller```
-V 7.1 版本：```pip install PySide6 PyMuPDF reportlab pillow```
-
-#### 第三步：执行 Mac 专属打包命令
-
-在终端中使用 cd 命令进入你存放代码的文件夹。然后执行：
-
-```pyinstaller --windowed --onefile ArchiveApp.py```
-
-#### 第四步：收获你的 Mac 软件
-
-打包完成后，进入 dist 文件夹，你会看到一个名为 ArchiveApp.app 的文件，它带着标准 Mac 软件的图标。你可以把它拖到“应用程序”文件夹里使用。
-
-注意：当你双击运行它时，Mac 大概率会弹窗提示：“ArchiveApp.app 已损坏，无法打开。你应该将它移到废纸篓。”时，有两种解决方法：
-
-1 打开 Mac 终端，输入以下命令（注意最后有一个空格），然后把你的 .app 文件拖进终端里，按下回车即可解除锁定：
-
-```sudo xattr -rd com.apple.quarantine ```
-
-(例如：sudo xattr -rd com.apple.quarantine /Users/name/Desktop/dist/ArchiveApp.app)
-
-2 右键强开法：
-
-按住键盘上的 Control 键，鼠标点击该软件，在弹出的菜单中选择“打开”。系统会再次警告你，但这次会多出一个“打开”按钮供你强行放行。
