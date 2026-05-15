@@ -1,16 +1,22 @@
-import tkinter as tk
-from tkinter import ttk, filedialog, messagebox, scrolledtext, simpledialog
 import os
 import sys
 import tempfile
 import json
 import fitz  # PyMuPDF
-from PIL import Image, ImageTk
+from PIL import Image
 from reportlab.pdfgen import canvas
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.cidfonts import UnicodeCIDFont
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.lib.pagesizes import A4
+
+from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
+                               QHBoxLayout, QLabel, QPushButton, QListWidget, 
+                               QTabWidget, QScrollArea, QFrame, QTextEdit, 
+                               QCheckBox, QFileDialog, QMessageBox, QSplitter, 
+                               QInputDialog, QLineEdit, QGroupBox, QMenu)
+from PySide6.QtCore import Qt, QUrl
+from PySide6.QtGui import QPixmap, QImage, QIcon, QAction, QDesktopServices
 
 # ================= 跨平台处理核心逻辑 =================
 IS_WINDOWS = sys.platform.startswith('win')
@@ -21,47 +27,107 @@ if IS_WINDOWS:
     except ImportError:
         print("警告: 缺少 pywin32 库。")
 
-def get_windows_font():
-    if not IS_WINDOWS: return None
-    font_paths = [
-        "C:\\Windows\\Fonts\\simsun.ttc",
-        "C:\\Windows\\Fonts\\msyh.ttc",
-        "C:\\Windows\\Fonts\\simhei.ttf"
-    ]
+def get_system_font():
+    font_paths = []
+    if IS_WINDOWS:
+        font_paths = [
+            "C:\\Windows\\Fonts\\simsun.ttc",
+            "C:\\Windows\\Fonts\\msyh.ttc",
+            "C:\\Windows\\Fonts\\simhei.ttf"
+        ]
+    elif sys.platform == 'darwin':
+        font_paths = [
+            "/System/Library/Fonts/PingFang.ttc",
+            "/System/Library/Fonts/STHeiti Light.ttc",
+            "/Library/Fonts/Arial Unicode.ttf"
+        ]
     for path in font_paths:
         if os.path.exists(path): return path
     return None
 
-SYS_FONT_PATH = get_windows_font()
+SYS_FONT_PATH = get_system_font()
 # ======================================================
 
 DEFAULT_CATALOGS = {
     "民商事": [
-        "1. 收案登记审批表", "2. 收费凭证", "3. 委托材料", "4. 起诉状、上诉状或答辩状", 
-        "5. 阅卷笔录", "6. 委托人谈话笔录", "7. 证据材料", "8. 诉讼(证据、先行)保全申请书、法院裁定书", 
-        "9. 承办律师代理意见", "10. 集体讨论记录", "11. 代理词、辩护词", "12. 出庭通知书(传票)", 
-        "13. 庭审笔录", "14. 法院通知书、判决书、裁定书等", "15. 其他送达证明文件", 
-        "16. 办案质量监督卡", "17. 结案登记表"
+        "1. *收案登记审批表", "2. *收费凭证", "3. *委托材料（委托合同、风险告知书、授权委托书、公函复印件）", 
+        "4. *起诉状、上诉状或答辩状", "5. 阅卷笔录", "6. 委托人谈话笔录", "7. 证据材料", 
+        "8. 诉讼（证据、先行）保全申请书、法院裁定书", "9. 承办律师代理意见", "10. 集体讨论记录", 
+        "11. 代理词、辩护词", "12. 出庭通知书（传票）", "13. 庭审笔录", 
+        "14. *法院通知书、判决书、裁定书、调解书、上诉书", "15. 其他（判决书、裁定书送达证明文件）", 
+        "16. *办案质量监督卡", "17. *结案登记表"
     ],
     "刑事": [
-        "1. 收案登记审批表", "2. 收费凭证", "3. 委托材料", "4. 阅卷笔录", 
-        "5. 会见被告人、委托人、证人笔录", "6. 调查材料", "7. 辩护或代理意见", "8. 集体讨论意见", 
-        "9. 起诉书或上诉书", "10. 辩护词或代理词", "11. 出庭通知书(传票)", "12. 法院判决书、裁定书", 
-        "13. 上诉书和抗诉书", "14. 办案小结", "15. 其他送达证明文件", "16. 办案质量监督卡", "17. 结案登记表"
+        "1. *收案登记审批表", "2. *收费凭证", "3. *委托材料（委托合同、风险告知书、授权委托书、公函复印件或人民法院指定书）", 
+        "4. *阅卷笔录", "5. 律师会见被告人、委托人、证人笔录", "6. 律师对此案的调查材料", 
+        "7. 律师辩护意见或代理意见", "8. 律师事务所对律师代理的集体讨论意见", "9. *案件起诉书或上诉书", 
+        "10. 律师辩护词或代理词", "11. 出庭通知书（传票）", "12. *法院判决书、裁定书", 
+        "13. 当事人上诉书和人民检察院抗诉书（如有）", "14. 律师办案小结", "15. 其他（判决书、裁定书送达证明文件）", 
+        "16. *办案质量监督卡", "17. *结案登记表"
     ]
 }
 
-# --- 扩展支持的文件格式 ---
 SUPPORTED_EXTENSIONS = (
-    "*.pdf *.doc *.docx *.xls *.xlsx *.ppt *.pptx *.txt *.rtf "
-    "*.jpg *.jpeg *.png *.bmp *.tif *.tiff"
+    "所有支持的文件 (*.pdf *.doc *.docx *.xls *.xlsx *.ppt *.pptx *.txt *.rtf *.jpg *.jpeg *.png *.bmp *.tif *.tiff);;"
+    "PDF 文件 (*.pdf);;"
+    "Office/文本 文件 (*.doc *.docx *.xls *.xlsx *.ppt *.pptx *.txt *.rtf);;"
+    "图片文件 (*.jpg *.jpeg *.png *.bmp *.tif *.tiff)"
 )
 
-class ArchiveApp:
-    def __init__(self, root):
-        self.root = root
-        self.root.title("律师案件归档神器 V5.0 (全格式兼容版)")
-        self.root.geometry("1100x750") 
+VALID_EXTENSIONS_LIST = ['.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx', '.txt', '.rtf', '.jpg', '.jpeg', '.png', '.bmp', '.tif', '.tiff']
+
+
+# ================= 新增：支持拖拽上传的自定义 QListWidget =================
+class DropListWidget(QListWidget):
+    def __init__(self, unique_key, app_ref, category_name):
+        super().__init__()
+        self.setAcceptDrops(True) # 开启拖拽接受
+        self.unique_key = unique_key
+        self.app_ref = app_ref
+        self.category_name = category_name
+        self.setStyleSheet("QListWidget { background-color: #ffffff; border: 1px solid #dcdcdc; border-radius: 4px; padding: 2px; }"
+                           "QListWidget::item:selected { background-color: #e0f7fa; color: #006064; }")
+
+    def dragEnterEvent(self, event):
+        if event.mimeData().hasUrls():
+            event.acceptProposedAction()
+        else:
+            super().dragEnterEvent(event)
+
+    def dragMoveEvent(self, event):
+        if event.mimeData().hasUrls():
+            event.acceptProposedAction()
+        else:
+            super().dragMoveEvent(event)
+
+    def dropEvent(self, event):
+        if event.mimeData().hasUrls():
+            urls = event.mimeData().urls()
+            files = [url.toLocalFile() for url in urls if url.isLocalFile()]
+            
+            # 过滤支持的文件
+            valid_files = [f for f in files if any(f.lower().endswith(ext) for ext in VALID_EXTENSIONS_LIST)]
+            
+            if valid_files:
+                for f in valid_files:
+                    self.app_ref.files_data[self.unique_key].append(f)
+                    self.addItem(os.path.basename(f))
+                self.app_ref.update_stats()
+                self.app_ref.log(f"📥 拖拽上传：为 [{self.category_name}] 快速添加了 {len(valid_files)} 个文件。")
+            else:
+                self.app_ref.log("⚠️ 拖拽失败：包含不支持的文件格式。")
+            
+            event.acceptProposedAction()
+        else:
+            super().dropEvent(event)
+
+
+class ArchiveApp(QMainWindow):
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("律师案件归档神器 V7.1 (拖拽修复版)")
+        self.resize(1200, 800)
+        self.setMinimumSize(1000, 600)
         
         self.files_data = {} 
         self.listbox_dict = {}
@@ -78,265 +144,359 @@ class ArchiveApp:
         self.create_ui()
 
     def create_menu(self):
-        menubar = tk.Menu(self.root)
-        file_menu = tk.Menu(menubar, tearoff=0)
-        file_menu.add_command(label="保存当前进度 (草稿)", command=self.save_draft)
-        file_menu.add_command(label="加载历史进度", command=self.load_draft)
-        file_menu.add_separator()
-        file_menu.add_command(label="退出", command=self.root.quit)
-        menubar.add_cascade(label="📂 归档工程管理", menu=file_menu)
-        self.root.config(menu=menubar)
+        menubar = self.menuBar()
+        file_menu = menubar.addMenu("📂 归档工程管理")
+        
+        save_action = QAction("💾 保存当前进度 (草稿)", self)
+        save_action.triggered.connect(self.save_draft)
+        file_menu.addAction(save_action)
+        
+        load_action = QAction("📂 加载历史进度", self)
+        load_action.triggered.connect(self.load_draft)
+        file_menu.addAction(load_action)
+        
+        file_menu.addSeparator()
+        exit_action = QAction("❌ 退出程序", self)
+        exit_action.triggered.connect(self.close)
+        file_menu.addAction(exit_action)
+        
+        help_menu = menubar.addMenu("❓ 帮助")
+        about_action = QAction("ℹ️ 关于软件", self)
+        about_action.triggered.connect(self.show_about_dialog)
+        help_menu.addAction(about_action)
+
+    def show_about_dialog(self):
+        about_text = """
+        <h3>律师案件归档神器</h3>
+        <p><b>软件版本：</b> V7.1 (拖拽修复版)</p>
+        <p><b>核心更新：</b></p>
+        <ul>
+            <li>修复多目录预览选中失效的 BUG</li>
+            <li>支持原生文件<b>拖拽上传</b></li>
+            <li>支持<b>双击</b>列表中的文件调用系统软件直接打开</li>
+        </ul>
+        
+        """
+        QMessageBox.about(self, "关于软件", about_text)
 
     def create_ui(self):
-        paned_window = ttk.PanedWindow(self.root, orient=tk.HORIZONTAL)
-        paned_window.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        main_splitter = QSplitter(Qt.Horizontal)
+        self.setCentralWidget(main_splitter)
 
-        left_frame = ttk.Frame(paned_window)
-        paned_window.add(left_frame, weight=3) 
+        # ====== 左侧：操作区 ======
+        left_widget = QWidget()
+        left_layout = QVBoxLayout(left_widget)
+        left_layout.setContentsMargins(10, 10, 5, 10)
 
-        self.notebook = ttk.Notebook(left_frame)
-        self.notebook.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        self.tab_widget = QTabWidget()
+        left_layout.addWidget(self.tab_widget, stretch=1)
 
-        self.tab_civil = ttk.Frame(self.notebook)
-        self.tab_criminal = ttk.Frame(self.notebook)
-        self.tab_non_litigation = ttk.Frame(self.notebook)
+        self.tab_civil = QWidget()
+        self.tab_criminal = QWidget()
+        self.tab_custom = QWidget()
 
-        self.notebook.add(self.tab_civil, text="民商案件")
-        self.notebook.add(self.tab_criminal, text="刑事案件")
-        self.notebook.add(self.tab_non_litigation, text="非诉案件(自定义)")
+        self.tab_widget.addTab(self.tab_civil, "⚖️ 民商案件")
+        self.tab_widget.addTab(self.tab_criminal, "🛡️ 刑事案件")
+        self.tab_widget.addTab(self.tab_custom, "📝 自定义目录")
 
         self.build_catalog_ui(self.tab_civil, DEFAULT_CATALOGS["民商事"], "civil")
         self.build_catalog_ui(self.tab_criminal, DEFAULT_CATALOGS["刑事"], "criminal")
-        self.build_custom_ui(self.tab_non_litigation)
+        self.build_custom_ui(self.tab_custom)
 
-        bottom_frame = tk.Frame(left_frame)
-        bottom_frame.pack(fill=tk.X, side=tk.BOTTOM, padx=5, pady=5)
+        bottom_layout = QVBoxLayout()
+        self.chk_compress = QCheckBox("🗜️ 开启电子卷宗瘦身 (极限压缩，适合法院网上立案)")
+        self.chk_compress.setStyleSheet("color: #d32f2f; font-weight: bold; font-size: 13px;")
+        bottom_layout.addWidget(self.chk_compress)
+
+        self.btn_generate = QPushButton("🚀 一键转换并合并归档")
+        self.btn_generate.setMinimumHeight(50)
+        self.btn_generate.setStyleSheet("background-color: #4CAF50; color: white; font-weight: bold; font-size: 16px; border-radius: 5px;")
+        self.btn_generate.clicked.connect(self.start_processing)
+        bottom_layout.addWidget(self.btn_generate)
         
-        self.compress_var = tk.BooleanVar(value=False)
-        chk_compress = tk.Checkbutton(bottom_frame, text="🗜️ 开启电子卷宗瘦身 (极限压缩，适合法院网上立案)", 
-                                      variable=self.compress_var, font=("微软雅黑", 10), fg="#d32f2f")
-        chk_compress.pack(pady=(0, 5))
+        left_layout.addLayout(bottom_layout)
 
-        self.btn_generate = tk.Button(bottom_frame, text="🚀 一键转换并合并归档", 
-                                      bg="#4CAF50", fg="white", font=("微软雅黑", 12, "bold"), 
-                                      command=self.start_processing)
-        self.btn_generate.pack(pady=5, fill=tk.X, ipadx=20, ipady=5)
+        # ====== 右侧：多功能仪表盘 ======
+        right_widget = QWidget()
+        right_layout = QVBoxLayout(right_widget)
+        right_layout.setContentsMargins(5, 10, 10, 10)
 
-        right_frame = ttk.Frame(paned_window)
-        paned_window.add(right_frame, weight=2)
+        lbl_preview_title = QLabel("👁️ 文件实时预览 (双击左侧列表文件可打开)")
+        lbl_preview_title.setStyleSheet("font-weight: bold; font-size: 14px;")
+        right_layout.addWidget(lbl_preview_title)
 
-        preview_label = tk.Label(right_frame, text="👁️ 文件实时预览", font=("微软雅黑", 10, "bold"))
-        preview_label.pack(anchor="w", pady=(10,0), padx=5)
-        
-        self.preview_canvas = tk.Canvas(right_frame, bg="#e0e0e0", height=300, relief="sunken", bd=2)
-        self.preview_canvas.pack(fill=tk.X, padx=5, pady=5)
-        self.preview_canvas.create_text(200, 150, text="点击左侧文件查看缩略图\n(支持 PDF 与 各类图片)", fill="gray", font=("微软雅黑", 10), justify="center", tags="info_text")
-        self.current_preview_img = None 
+        self.preview_lbl = QLabel("点击左侧文件查看缩略图\n(支持直接将文件拖拽入左侧对应框内)")
+        self.preview_lbl.setAlignment(Qt.AlignCenter)
+        self.preview_lbl.setStyleSheet("background-color: #f0f0f0; border: 1px dashed #aaaaaa; border-radius: 8px; color: gray;")
+        self.preview_lbl.setMinimumHeight(300)
+        right_layout.addWidget(self.preview_lbl, stretch=2)
 
-        stats_label = tk.Label(right_frame, text="📊 归档状态统计", font=("微软雅黑", 10, "bold"))
-        stats_label.pack(anchor="w", pady=(15,0), padx=5)
-        self.lbl_stats = tk.Label(right_frame, text="当前未上传任何文件。", fg="blue", justify="left")
-        self.lbl_stats.pack(anchor="w", padx=5, pady=5)
+        lbl_stats_title = QLabel("📊 归档状态")
+        lbl_stats_title.setStyleSheet("font-weight: bold; font-size: 14px;")
+        right_layout.addWidget(lbl_stats_title)
 
-        log_label = tk.Label(right_frame, text="📝 处理日志", font=("微软雅黑", 10, "bold"))
-        log_label.pack(anchor="w", pady=(10,0), padx=5)
-        self.txt_log = scrolledtext.ScrolledText(right_frame, height=12, state=tk.DISABLED, bg="#f5f5f5")
-        self.txt_log.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        self.lbl_stats = QLabel("📂 当前未上传任何文件。")
+        self.lbl_stats.setStyleSheet("color: #1976D2; font-size: 13px;")
+        right_layout.addWidget(self.lbl_stats)
+
+        lbl_log_title = QLabel("📝 处理日志")
+        lbl_log_title.setStyleSheet("font-weight: bold; font-size: 14px;")
+        right_layout.addWidget(lbl_log_title)
+
+        self.txt_log = QTextEdit()
+        self.txt_log.setReadOnly(True)
+        self.txt_log.setStyleSheet("background-color: #f9f9f9; font-family: Consolas;")
+        right_layout.addWidget(self.txt_log, stretch=1)
+
+        main_splitter.addWidget(left_widget)
+        main_splitter.addWidget(right_widget)
+        main_splitter.setStretchFactor(0, 6)
+        main_splitter.setStretchFactor(1, 4)
 
     def log(self, message):
-        self.txt_log.config(state=tk.NORMAL)
-        self.txt_log.insert(tk.END, message + "\n")
-        self.txt_log.see(tk.END)
-        self.txt_log.config(state=tk.DISABLED)
-        self.root.update()
+        self.txt_log.append(message)
+        QApplication.processEvents()
 
     def update_stats(self):
         total = sum(len(files) for files in self.files_data.values())
-        self.lbl_stats.config(text=f"📂 当前总计已准备文件：{total} 份")
+        self.lbl_stats.setText(f"📂 当前总计已准备文件：{total} 份")
 
     def save_draft(self):
         if not any(self.files_data.values()):
-            messagebox.showinfo("提示", "当前没有文件可保存！")
+            QMessageBox.information(self, "提示", "当前没有文件可保存！")
             return
-        path = filedialog.asksaveasfilename(title="保存归档工程", defaultextension=".json", filetypes=[("JSON 草稿", "*.json")])
+        path, _ = QFileDialog.getSaveFileName(self, "保存归档工程", "", "JSON 草稿 (*.json)")
         if path:
             try:
                 with open(path, 'w', encoding='utf-8') as f:
                     json.dump(self.files_data, f, ensure_ascii=False, indent=4)
                 self.log(f"✅ 草稿已保存至: {os.path.basename(path)}")
-                messagebox.showinfo("成功", "进度已保存！")
+                QMessageBox.information(self, "成功", "进度已保存！")
             except Exception as e:
-                messagebox.showerror("错误", f"保存失败: {str(e)}")
+                QMessageBox.critical(self, "错误", f"保存失败: {str(e)}")
 
     def load_draft(self):
-        path = filedialog.askopenfilename(title="加载归档工程", filetypes=[("JSON 草稿", "*.json")])
+        path, _ = QFileDialog.getOpenFileName(self, "加载归档工程", "", "JSON 草稿 (*.json)")
         if path:
             try:
                 with open(path, 'r', encoding='utf-8') as f:
                     loaded_data = json.load(f)
                 
                 self.files_data = loaded_data
-                for key, listbox in self.listbox_dict.items():
-                    listbox.delete(0, tk.END)
+                for key, list_widget in self.listbox_dict.items():
+                    list_widget.clear()
                     if key in self.files_data:
                         for file_path in self.files_data[key]:
-                            listbox.insert(tk.END, os.path.basename(file_path))
+                            list_widget.addItem(os.path.basename(file_path))
                 
                 self.update_stats()
                 self.log(f"🔄 成功加载历史进度: {os.path.basename(path)}")
-                messagebox.showinfo("成功", "进度已恢复，请检查文件列表！")
+                QMessageBox.information(self, "成功", "进度已恢复，请检查文件列表！")
             except Exception as e:
-                messagebox.showerror("错误", f"加载失败: {str(e)}")
+                QMessageBox.critical(self, "错误", f"加载失败: {str(e)}")
 
-    def build_catalog_ui(self, parent_frame, catalog_list, tab_prefix):
-        canvas_widget = tk.Canvas(parent_frame)
-        scrollbar = ttk.Scrollbar(parent_frame, orient="vertical", command=canvas_widget.yview)
-        scrollable_frame = ttk.Frame(canvas_widget)
-
-        scrollable_frame.bind("<Configure>", lambda e: canvas_widget.configure(scrollregion=canvas_widget.bbox("all")))
-        canvas_widget.create_window((0, 0), window=scrollable_frame, anchor="nw")
-        canvas_widget.configure(yscrollcommand=scrollbar.set)
-
-        canvas_widget.pack(side="left", fill="both", expand=True)
-        scrollbar.pack(side="right", fill="y")
-
-        def _bind_mousewheel(e):
-            canvas_widget.bind_all("<MouseWheel>", lambda event: canvas_widget.yview_scroll(int(-1*(event.delta/120)), "units"))
-            canvas_widget.bind_all("<Button-4>", lambda event: canvas_widget.yview_scroll(-1, "units"))
-            canvas_widget.bind_all("<Button-5>", lambda event: canvas_widget.yview_scroll(1, "units"))
-
-        def _unbind_mousewheel(e):
-            canvas_widget.unbind_all("<MouseWheel>")
-            canvas_widget.unbind_all("<Button-4>")
-            canvas_widget.unbind_all("<Button-5>")
-
-        canvas_widget.bind("<Enter>", _bind_mousewheel)
-        canvas_widget.bind("<Leave>", _unbind_mousewheel)
+    def build_catalog_ui(self, parent_widget, catalog_list, tab_prefix):
+        layout = QVBoxLayout(parent_widget)
+        
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        scroll_area.setFrameShape(QFrame.NoFrame)
+        
+        container = QWidget()
+        container_layout = QVBoxLayout(container)
+        container_layout.setContentsMargins(0,0,0,0)
 
         for item in catalog_list:
-            self._create_catalog_row(scrollable_frame, item, tab_prefix)
+            self._create_catalog_row(container_layout, item, tab_prefix)
+            
+        container_layout.addStretch() 
+        scroll_area.setWidget(container)
+        layout.addWidget(scroll_area)
 
-    def _create_catalog_row(self, parent, item_name, tab_prefix):
+    def _create_catalog_row(self, layout, item_name, tab_prefix):
         unique_key = f"{tab_prefix}_{item_name}" 
         if unique_key not in self.files_data:
             self.files_data[unique_key] = []
         
-        row_frame = tk.Frame(parent, pady=5, padx=10)
-        row_frame.pack(fill=tk.X, expand=True)
+        group_box = QGroupBox()
+        group_layout = QHBoxLayout(group_box)
+        group_layout.setContentsMargins(10, 5, 10, 5)
 
-        tk.Label(row_frame, text=item_name, width=25, anchor="w", font=("微软雅黑", 10)).pack(side=tk.LEFT)
-        listbox = tk.Listbox(row_frame, height=3, width=50, exportselection=False) 
-        listbox.pack(side=tk.LEFT, padx=10, fill=tk.X, expand=True)
+        lbl_title = QLabel(item_name)
+        lbl_title.setWordWrap(True)
+        lbl_title.setMinimumWidth(180)
+        lbl_title.setMaximumWidth(220)
+        lbl_title.setStyleSheet("font-weight: bold;")
+        group_layout.addWidget(lbl_title)
+
+        # 使用支持拖拽的新版 ListWidget
+        list_widget = DropListWidget(unique_key, self, item_name)
+        list_widget.setFixedHeight(70)
+        self.listbox_dict[unique_key] = list_widget
+        self.reverse_listbox_map[id(list_widget)] = unique_key
         
-        self.listbox_dict[unique_key] = listbox
-        self.reverse_listbox_map[str(listbox)] = unique_key
-        listbox.bind('<<ListboxSelect>>', self.on_listbox_select)
+        # ====== 修复核心 BUG：改用 itemClicked 强制刷新预览 ======
+        list_widget.itemClicked.connect(lambda item, lw=list_widget: self.on_listbox_select(lw))
+        # 增加双击打开系统文件功能
+        list_widget.itemDoubleClicked.connect(lambda item, lw=list_widget: self.open_original_file(lw))
+        
+        group_layout.addWidget(list_widget, stretch=1)
 
-        btn_frame = tk.Frame(row_frame)
-        btn_frame.pack(side=tk.RIGHT)
-        tk.Button(btn_frame, text="添加文件", command=lambda: self.add_files(unique_key, item_name)).grid(row=0, column=0, padx=2, pady=2)
-        tk.Button(btn_frame, text="上移", command=lambda: self.move_item(unique_key, -1)).grid(row=0, column=1, padx=2, pady=2)
-        tk.Button(btn_frame, text="下移", command=lambda: self.move_item(unique_key, 1)).grid(row=1, column=0, padx=2, pady=2)
-        tk.Button(btn_frame, text="删除", command=lambda: self.delete_item(unique_key)).grid(row=1, column=1, padx=2, pady=2)
+        btn_layout = QVBoxLayout()
+        btn_add = QPushButton("添加文件")
+        btn_add.clicked.connect(lambda _, uk=unique_key, name=item_name: self.add_files(uk, name))
+        btn_layout.addWidget(btn_add)
 
-    def build_custom_ui(self, parent_frame):
-        top_frame = tk.Frame(parent_frame)
-        top_frame.pack(fill=tk.X, padx=10, pady=10)
-        tk.Label(top_frame, text="请在下方输入目录项（每行代表一个目录项）：", font=("微软雅黑", 10)).pack(anchor="w")
-        self.text_custom = scrolledtext.ScrolledText(top_frame, height=6, width=60)
-        self.text_custom.pack(pady=5, fill=tk.X)
-        self.text_custom.insert(tk.END, "1. 顾问合同\n2. 法律意见书\n3. 会议纪要")
-        tk.Button(top_frame, text="生成下方上传目录", command=self.generate_custom_catalog).pack(pady=5)
-        self.custom_list_frame = tk.Frame(parent_frame)
-        self.custom_list_frame.pack(fill=tk.BOTH, expand=True)
+        sub_btn_layout = QHBoxLayout()
+        btn_up = QPushButton("▲")
+        btn_up.setToolTip("上移")
+        btn_up.clicked.connect(lambda _, uk=unique_key: self.move_item(uk, -1))
+        btn_down = QPushButton("▼")
+        btn_down.setToolTip("下移")
+        btn_down.clicked.connect(lambda _, uk=unique_key: self.move_item(uk, 1))
+        sub_btn_layout.addWidget(btn_up)
+        sub_btn_layout.addWidget(btn_down)
+        btn_layout.addLayout(sub_btn_layout)
+
+        btn_del = QPushButton("删除")
+        btn_del.setStyleSheet("color: red;")
+        btn_del.clicked.connect(lambda _, uk=unique_key: self.delete_item(uk))
+        btn_layout.addWidget(btn_del)
+
+        group_layout.addLayout(btn_layout)
+        layout.addWidget(group_box)
+
+    def build_custom_ui(self, parent_widget):
+        layout = QVBoxLayout(parent_widget)
+        
+        layout.addWidget(QLabel("请在下方输入目录项（每行代表一个目录项）："))
+        self.text_custom = QTextEdit()
+        self.text_custom.setText("1. 顾问合同\n2. 法律意见书\n3. 会议纪要")
+        self.text_custom.setMaximumHeight(100)
+        layout.addWidget(self.text_custom)
+        
+        btn_generate_custom = QPushButton("生成下方上传目录")
+        btn_generate_custom.clicked.connect(self.generate_custom_catalog)
+        layout.addWidget(btn_generate_custom)
+        
+        self.custom_list_container = QWidget()
+        self.custom_list_layout = QVBoxLayout(self.custom_list_container)
+        self.custom_list_layout.setContentsMargins(0,0,0,0)
+        
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        scroll_area.setFrameShape(QFrame.NoFrame)
+        scroll_area.setWidget(self.custom_list_container)
+        layout.addWidget(scroll_area, stretch=1)
 
     def generate_custom_catalog(self):
-        for widget in self.custom_list_frame.winfo_children(): widget.destroy()
-        content = self.text_custom.get("1.0", tk.END).strip()
+        while self.custom_list_layout.count():
+            item = self.custom_list_layout.takeAt(0)
+            widget = item.widget()
+            if widget:
+                widget.deleteLater()
+                
+        content = self.text_custom.toPlainText().strip()
         if not content: return
         items = content.split('\n')
-        self.build_catalog_ui(self.custom_list_frame, [item.strip() for item in items if item.strip()], "custom")
+        
+        for item in items:
+            if item.strip():
+                self._create_catalog_row(self.custom_list_layout, item.strip(), "custom")
+        self.custom_list_layout.addStretch()
         self.log("✅ 自定义目录已生成。")
 
     def add_files(self, unique_key, category_name):
-        # 更新支持的文件过滤器
-        files = filedialog.askopenfilenames(
-            title=f"为【{category_name}】选择文件",
-            filetypes=[("支持的文件", SUPPORTED_EXTENSIONS)]
-        )
+        files, _ = QFileDialog.getOpenFileNames(self, f"为【{category_name}】选择文件", "", SUPPORTED_EXTENSIONS)
         if files:
             for f in files:
                 self.files_data[unique_key].append(f)
-                self.listbox_dict[unique_key].insert(tk.END, os.path.basename(f))
+                self.listbox_dict[unique_key].addItem(os.path.basename(f))
             self.update_stats()
-            self.log(f"📥 为 [{category_name}] 添加了 {len(files)} 个文件。")
+            self.log(f"📥 按钮上传：为 [{category_name}] 添加了 {len(files)} 个文件。")
 
     def move_item(self, unique_key, direction):
-        listbox = self.listbox_dict[unique_key]
-        selected_idx = listbox.curselection()
-        if not selected_idx: return
-        idx = selected_idx[0]
-        new_idx = idx + direction
-        if 0 <= new_idx < listbox.size():
-            item_text = listbox.get(idx)
-            listbox.delete(idx)
-            listbox.insert(new_idx, item_text)
-            listbox.selection_set(new_idx)
-            self.files_data[unique_key][idx], self.files_data[unique_key][new_idx] = \
-                self.files_data[unique_key][new_idx], self.files_data[unique_key][idx]
-            self.on_listbox_select(None, listbox)
+        list_widget = self.listbox_dict[unique_key]
+        current_row = list_widget.currentRow()
+        if current_row < 0: return
+        new_row = current_row + direction
+        
+        if 0 <= new_row < list_widget.count():
+            self.files_data[unique_key][current_row], self.files_data[unique_key][new_row] = \
+                self.files_data[unique_key][new_row], self.files_data[unique_key][current_row]
+            item = list_widget.takeItem(current_row)
+            list_widget.insertItem(new_row, item)
+            list_widget.setCurrentRow(new_row)
+            self.on_listbox_select(list_widget)
 
     def delete_item(self, unique_key):
-        listbox = self.listbox_dict[unique_key]
-        selected_idx = listbox.curselection()
-        if not selected_idx: return
-        idx = selected_idx[0]
-        listbox.delete(idx)
-        self.files_data[unique_key].pop(idx)
+        list_widget = self.listbox_dict[unique_key]
+        current_row = list_widget.currentRow()
+        if current_row < 0: return
+        list_widget.takeItem(current_row)
+        self.files_data[unique_key].pop(current_row)
         self.update_stats()
-        self.preview_canvas.delete("all")
-        self.preview_canvas.create_text(200, 150, text="文件已移除", fill="gray", font=("微软雅黑", 10))
+        self.preview_lbl.setPixmap(QPixmap())
+        self.preview_lbl.setText("文件已移除")
 
-    def on_listbox_select(self, event, listbox=None):
-        lb = listbox if listbox else event.widget
-        selection = lb.curselection()
-        if not selection: return
-        idx = selection[0]
-        lb_id = str(lb)
-        if lb_id not in self.reverse_listbox_map: return
-        unique_key = self.reverse_listbox_map[lb_id]
-        file_path = self.files_data[unique_key][idx]
-        self.render_preview(file_path)
+    def open_original_file(self, active_list_widget):
+        """双击用系统默认程序打开文件"""
+        current_row = active_list_widget.currentRow()
+        if current_row < 0: return
+        lw_id = id(active_list_widget)
+        if lw_id not in self.reverse_listbox_map: return
+        unique_key = self.reverse_listbox_map[lw_id]
+        
+        try:
+            file_path = self.files_data[unique_key][current_row]
+            QDesktopServices.openUrl(QUrl.fromLocalFile(file_path))
+        except Exception:
+            pass
+
+    def on_listbox_select(self, active_list_widget):
+        """修复后的预览逻辑：排他性高亮 + 强制刷新"""
+        # 1. 强制清除其他所有列表的选中高亮状态，保证视觉焦点唯一
+        for lw in self.listbox_dict.values():
+            if lw != active_list_widget:
+                lw.clearSelection()
+
+        current_row = active_list_widget.currentRow()
+        if current_row < 0: return
+        lw_id = id(active_list_widget)
+        if lw_id not in self.reverse_listbox_map: return
+        unique_key = self.reverse_listbox_map[lw_id]
+        
+        try:
+            file_path = self.files_data[unique_key][current_row]
+            self.render_preview(file_path)
+        except IndexError:
+            pass 
 
     def render_preview(self, file_path):
-        self.preview_canvas.delete("all")
         ext = os.path.splitext(file_path)[1].lower()
         try:
-            # 加入更多图片格式的预览支持
             if ext in ['.jpg', '.jpeg', '.png', '.bmp', '.tif', '.tiff']:
-                img = Image.open(file_path)
-                img.thumbnail((380, 280))
-                self.current_preview_img = ImageTk.PhotoImage(img)
-                self.preview_canvas.create_image(200, 150, image=self.current_preview_img)
+                pixmap = QPixmap(file_path)
+                self.preview_lbl.setPixmap(pixmap.scaled(self.preview_lbl.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation))
             elif ext == '.pdf':
                 doc = fitz.open(file_path)
                 page = doc[0]
                 pix = page.get_pixmap(matrix=fitz.Matrix(0.5, 0.5))
-                img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
-                img.thumbnail((380, 280))
-                self.current_preview_img = ImageTk.PhotoImage(img)
-                self.preview_canvas.create_image(200, 150, image=self.current_preview_img)
+                img_data = pix.tobytes("ppm")
+                pixmap = QPixmap()
+                pixmap.loadFromData(img_data)
+                self.preview_lbl.setPixmap(pixmap.scaled(self.preview_lbl.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation))
                 doc.close()
             elif ext in ['.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx', '.txt', '.rtf']:
-                self.preview_canvas.create_text(200, 150, text="📄\nOffice/文本 文档暂不支持实时预览\n将在最终合并时处理", fill="#555", font=("微软雅黑", 12), justify="center")
+                self.preview_lbl.setText(f"📄\n该文件为 {ext.upper()} 文档\n暂不支持实时预览（合并时自动处理）\n\n💡 提示：双击左侧列表中的文件名\n可直接在您的系统中打开它！")
             else:
-                self.preview_canvas.create_text(200, 150, text="未知文件格式", fill="red")
+                self.preview_lbl.setText("未知文件格式")
         except Exception as e:
-            self.preview_canvas.create_text(200, 150, text=f"预览失败\n(文件可能已被移动或损坏)", fill="red", justify="center")
+            self.preview_lbl.setText(f"预览失败\n(文件可能已被移动或损坏)")
 
     # ================= 核心处理逻辑 =================
     def start_processing(self):
-        current_tab_idx = self.notebook.index(self.notebook.select())
+        current_tab_idx = self.tab_widget.currentIndex()
         if current_tab_idx == 0:
             active_catalog = DEFAULT_CATALOGS["民商事"]
             tab_prefix = "civil"
@@ -344,38 +504,38 @@ class ArchiveApp:
             active_catalog = DEFAULT_CATALOGS["刑事"]
             tab_prefix = "criminal"
         else:
-            content = self.text_custom.get("1.0", tk.END).strip()
+            content = self.text_custom.toPlainText().strip()
             active_catalog = [item.strip() for item in content.split('\n') if item.strip()]
             tab_prefix = "custom"
 
         has_files = any(len(self.files_data.get(f"{tab_prefix}_{cat}", [])) > 0 for cat in active_catalog)
         if not has_files:
-            messagebox.showwarning("空目录", "请至少在一个目录项下添加文件后再生成！")
+            QMessageBox.warning(self, "空目录", "请至少在一个目录项下添加文件后再生成！")
             return
 
-        watermark_text = simpledialog.askstring("防伪水印设置", "请输入背景水印文本\n（如果不需要水印，请留空或直接点击“取消”）")
-        compress_mode = self.compress_var.get()
+        watermark_text, ok = QInputDialog.getText(self, "防伪水印设置", "请输入背景水印文本\n（留空则不加水印）：", QLineEdit.Normal, "")
+        if not ok: return 
+        
+        compress_mode = self.chk_compress.isChecked()
 
-        save_path = filedialog.asksaveasfilename(
-            title="选择归档文件保存位置", defaultextension=".pdf",
-            filetypes=[("PDF 文件", "*.pdf")], initialfile="新案件归档.pdf"
-        )
+        save_path, _ = QFileDialog.getSaveFileName(self, "选择归档文件保存位置", "新案件归档.pdf", "PDF 文件 (*.pdf)")
         if not save_path: return
 
-        self.btn_generate.config(state=tk.DISABLED, text="处理中，请勿操作...")
-        self.txt_log.config(state=tk.NORMAL); self.txt_log.delete('1.0', tk.END); self.txt_log.config(state=tk.DISABLED)
+        self.btn_generate.setEnabled(False)
+        self.btn_generate.setText("处理中，请勿操作...")
+        self.txt_log.clear()
         self.log(f"🚀 开始执行合并归档任务... (瘦身压缩模式: {'已开启' if compress_mode else '未开启'})")
-        self.root.update()
 
         try:
-            self.process_and_merge(active_catalog, save_path, tab_prefix, watermark_text, compress_mode)
+            self.process_and_merge(active_catalog, save_path, tab_prefix, watermark_text.strip(), compress_mode)
             self.log("🎉 任务全部完成！")
-            messagebox.showinfo("大功告成", f"归档文件已成功生成并保存至：\n{save_path}")
+            QMessageBox.information(self, "大功告成", f"归档文件已成功生成并保存至：\n{save_path}")
         except Exception as e:
             self.log(f"❌ 发生致命错误: {str(e)}")
-            messagebox.showerror("发生错误", f"处理过程中发生错误：\n{str(e)}")
+            QMessageBox.critical(self, "发生错误", f"处理过程中发生错误：\n{str(e)}")
         finally:
-            self.btn_generate.config(state=tk.NORMAL, text="🚀 一键转换并合并归档")
+            self.btn_generate.setEnabled(True)
+            self.btn_generate.setText("🚀 一键转换并合并归档")
 
     def process_and_merge(self, catalog_list, save_path, tab_prefix, watermark_text, compress_mode):
         word_app, excel_app, ppt_app = None, None, None
@@ -384,7 +544,7 @@ class ArchiveApp:
             except: self.log("⚠️ 无法唤醒 Word 进程。")
             try: excel_app = win32com.client.DispatchEx("Excel.Application"); excel_app.Visible = False
             except: self.log("⚠️ 无法唤醒 Excel 进程。")
-            try: ppt_app = win32com.client.DispatchEx("PowerPoint.Application") # PPT 启动特性不同，不直接设 Visible
+            try: ppt_app = win32com.client.DispatchEx("PowerPoint.Application")
             except: self.log("⚠️ 无法唤醒 PowerPoint 进程。")
 
         main_pdf = fitz.open()
@@ -416,7 +576,6 @@ class ArchiveApp:
                         main_pdf.insert_pdf(doc)
                         doc.close()
                     
-                    # --- 图像格式支持扩展 (.bmp, .tif, .tiff) ---
                     elif ext in ['.jpg', '.jpeg', '.png', '.bmp', '.tif', '.tiff']:
                         img = Image.open(file_path)
                         if img.mode != 'RGB': img = img.convert('RGB')
@@ -437,12 +596,11 @@ class ArchiveApp:
                             main_pdf.insert_pdf(doc)
                             doc.close()
                     
-                    # --- 纯文本/富文本支持扩展 (.txt, .rtf) ---
                     elif ext in ['.doc', '.docx', '.txt', '.rtf']:
                         if IS_WINDOWS and word_app:
                             self.log(f"   ⚙️ 调用 Word 转换: {os.path.basename(file_path)}")
                             doc = word_app.Documents.Open(os.path.abspath(file_path))
-                            doc.SaveAs(os.path.abspath(temp_pdf_path), FileFormat=17) # 17 为 PDF 格式
+                            doc.SaveAs(os.path.abspath(temp_pdf_path), FileFormat=17) 
                             doc.Close()
                             pdf_doc = fitz.open(temp_pdf_path)
                             main_pdf.insert_pdf(pdf_doc)  
@@ -472,13 +630,11 @@ class ArchiveApp:
                             main_pdf.insert_pdf(doc)
                             doc.close()
 
-                    # --- PPT 支持扩展 (.ppt, .pptx) ---
                     elif ext in ['.ppt', '.pptx']:
                         if IS_WINDOWS and ppt_app:
                             self.log(f"   ⚙️ 调用 PowerPoint 转换: {os.path.basename(file_path)}")
-                            # WithWindow=False 实现后台静默打开
                             presentation = ppt_app.Presentations.Open(os.path.abspath(file_path), WithWindow=False)
-                            presentation.SaveAs(os.path.abspath(temp_pdf_path), 32) # 32 为 ppSaveAsPDF
+                            presentation.SaveAs(os.path.abspath(temp_pdf_path), 32) 
                             presentation.Close()
                             pdf_doc = fitz.open(temp_pdf_path)
                             main_pdf.insert_pdf(pdf_doc)
@@ -488,6 +644,8 @@ class ArchiveApp:
                             doc = fitz.open(temp_pdf_path)
                             main_pdf.insert_pdf(doc)
                             doc.close()
+                            
+                    QApplication.processEvents()
 
             if word_app: word_app.Quit()
             if excel_app: excel_app.Quit()
@@ -533,7 +691,8 @@ class ArchiveApp:
             for name, has_files, start_page in toc_data:
                 if has_files and start_page is not None:
                     actual_target_page = start_page + toc_page_count
-                    outline.append([1, name, actual_target_page])
+                    clean_name = name.split(" ", 1)[-1].replace("*", "").strip() if " " in name else name
+                    outline.append([1, clean_name, actual_target_page])
             main_pdf.set_toc(outline)
             
             if watermark_doc: watermark_doc.close()
@@ -558,13 +717,10 @@ class ArchiveApp:
     def _generate_toc_pdf(self, toc_data, output_path):
         c = canvas.Canvas(output_path, pagesize=A4)
         width, height = A4
-        
         c.setFont(self.report_font, 20)
         c.drawCentredString(width/2.0, height - 80, "卷 内 目 录")
-        
         c.setFont(self.report_font, 12)
         y = height - 130
-        
         c.drawString(70, y, "序号 / 内容")
         c.drawString(380, y, "有")
         c.drawString(430, y, "无")
@@ -576,7 +732,6 @@ class ArchiveApp:
         for name, has_files, page_num in toc_data:
             display_name = name if len(name) < 22 else name[:21] + "..."
             c.drawString(70, y, display_name)
-            
             box_size = 10
             c.rect(378, y-1, box_size, box_size) 
             c.rect(428, y-1, box_size, box_size) 
@@ -595,17 +750,16 @@ class ArchiveApp:
                 c.line(433, y, 439, y+8)
                 c.restoreState()
                 c.drawString(495, y, "-") 
-                
             y -= 25
-            
             if y < 80:
                 c.showPage()
                 c.setFont(self.report_font, 12)
                 y = height - 80
-
         c.save()
 
 if __name__ == "__main__":
-    root = tk.Tk()
-    app = ArchiveApp(root)
-    root.mainloop()
+    app = QApplication(sys.argv)
+    app.setStyle("Fusion")
+    window = ArchiveApp()
+    window.show()
+    sys.exit(app.exec())
